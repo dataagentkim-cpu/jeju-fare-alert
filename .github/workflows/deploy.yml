@@ -32,4 +32,4 @@ jobs:
           EC2_HOST: ${{ secrets.EC2_HOST }}
         run: |
           ssh -i ~/.ssh/deploy_key ubuntu@"$EC2_HOST" \
-            'cd /home/ubuntu/agent-service && git pull --ff-only origin main && sudo systemctl restart agent-service.service'
+            'cd /home/ubuntu/jeju-fare-alert && git pull --ff-only origin main && sudo systemctl restart jeju-fare-alert.service'

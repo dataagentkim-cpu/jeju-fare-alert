@@ -1,51 +1,43 @@
-# Agent Service
+# 제주 항공권 알림
 
-기존 EC2 서버에서 `runcoach.service`, `shadowtrack.service`와 나란히 실행할 세 번째 Python 프로세스의 최소 배포 뼈대입니다. AWS API, AWS CLI, SDK 또는 신규 AWS 리소스를 사용하지 않습니다.
+Google Flights 검색 결과를 SerpApi로 조회하고 Telegram으로 보내는 개인용 가격 알림 서비스입니다.
 
-## 저장소 구조
+## 조회 조건
 
-```text
-.
-├── .github/workflows/deploy.yml
-├── deploy/agent-service.service
-├── src/main.py
-├── .env.example
-├── .gitignore
-└── requirements.txt
-```
+- 김포 `GMP` → 제주 `CJU` 왕복.
+- 2026년 9월 24일 출발, 9월 27일 귀국.
+- 성인 4명, 일반석, 직항만 조회.
+- Asia/Seoul 기준 매일 09시, 15시, 21시 알림.
+
+## 환경변수
+
+`.env.example`을 `.env`로 복사하고 서버에서만 값을 입력합니다.
+
+- `SERPAPI_API_KEY`.
+- `TELEGRAM_BOT_TOKEN`.
+- `TELEGRAM_CHAT_ID`.
+
+`.env`, DB 파일, 로그 및 가상환경은 Git에서 제외됩니다.
 
 ## 최초 서버 설치
 
-아래 작업은 서버에서 한 번만 수행합니다. `REPOSITORY_NAME`은 실제 GitHub 저장소명으로 바꿉니다.
-
 ```bash
-ssh -i ~/Downloads/runcoach_key.pem ubuntu@3.35.236.206
-git clone https://github.com/dataagentkim-cpu/REPOSITORY_NAME.git /home/ubuntu/agent-service
-cd /home/ubuntu/agent-service
+git clone https://github.com/dataagentkim-cpu/jeju-fare-alert.git /home/ubuntu/jeju-fare-alert
+cd /home/ubuntu/jeju-fare-alert
 python3 -m venv venv
 venv/bin/pip install -r requirements.txt
 cp .env.example .env
-sudo cp deploy/agent-service.service /etc/systemd/system/agent-service.service
+sudo cp deploy/jeju-fare-alert.service /etc/systemd/system/jeju-fare-alert.service
 sudo systemctl daemon-reload
-sudo systemctl enable --now agent-service.service
-systemctl status agent-service.service --no-pager
+sudo systemctl enable --now jeju-fare-alert.service
 ```
 
-`.env`에는 서버에서 직접 비밀값을 넣습니다. 이 파일과 DB 파일은 `.gitignore`에 포함되어 저장소로 올라가지 않습니다.
-
-## GitHub Actions 설정
-
-GitHub 저장소의 `Settings → Secrets and variables → Actions`에 다음 Repository secret을 추가합니다.
-
-- `EC2_HOST` 값은 `3.35.236.206`입니다.
-- `EC2_SSH_KEY` 값은 `runcoach_key.pem`의 전체 내용입니다.
-
-이후 `main` 브랜치에 push하면 워크플로가 SSH로 접속해 `git pull --ff-only` 후 `agent-service.service`만 재시작합니다.
-
-## 로컬 실행
+시험 알림은 아래 명령으로 한 번 실행합니다.
 
 ```bash
-python3 -m src.main
+venv/bin/python -m src.main --once
 ```
 
-현재 프로세스는 시작 후 종료 신호를 기다리는 최소 진입점뿐입니다. 정기 작업이 생기면 별도 cron이나 systemd timer보다 애플리케이션 내부 스케줄러를 우선 사용합니다.
+## GitHub Actions
+
+Repository secret으로 `EC2_HOST`와 `EC2_SSH_KEY`를 등록합니다. `main` push 시 SSH로 서버에 접속해 `git pull --ff-only` 후 서비스만 재시작합니다.

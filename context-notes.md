@@ -3,9 +3,15 @@
 - AWS API, AWS CLI, AWS SDK, IAM 변경 및 신규 AWS 리소스 생성은 사용하지 않는다.
 - 기존 EC2 `3.35.236.206`의 `runcoach.service`, `shadowtrack.service`를 읽기 전용으로 조사한다.
 - 배포 서버 사용자는 `ubuntu`이며 SSH 키는 로컬 `~/Downloads/runcoach_key.pem`을 재사용한다.
-- 서비스 이름이 지정되지 않아 임시 이름을 `agent-service`로 가정한다. 최종 이름 확정 시 경로와 유닛명을 함께 변경할 수 있게 단순하게 유지한다.
-- 서버 배포 또는 systemd 변경은 이번 단계 범위가 아니다. 저장소에 배포 뼈대만 작성한다.
+- 서비스 이름은 `jeju-fare-alert`, 서버 경로는 `/home/ubuntu/jeju-fare-alert`, 유닛명은 `jeju-fare-alert.service`로 확정한다.
 - 기존 두 유닛 모두 `After=network.target`, `Restart=always`, `RestartSec=10`, `WantedBy=multi-user.target`을 사용한다.
 - 새 배포 경로는 `/home/ubuntu/agent-service`, 유닛명은 `agent-service.service`로 정했다.
 - CD는 최초 설치가 완료됐다는 전제에서 `git pull --ff-only origin main`과 서비스 재시작만 수행한다.
 - Python 진입점의 컴파일과 SIGTERM 정상 종료, `deploy.yml` YAML 파싱, `.env` 및 DB 패턴의 Git 제외를 검증했다.
+- 항공편 조건은 2026-09-24 김포 출발, 2026-09-27 제주 출발 왕복, 성인 4명, 직항이다.
+- 알림 시각은 Asia/Seoul 기준 매일 09:00, 15:00, 21:00이며 별도 cron 대신 프로세스 내부 스케줄러를 사용한다.
+- Telegram 봇은 `@jeju_fare_alert_2026_bot`이며 토큰과 chat ID는 서버 `.env`에만 저장한다.
+- 사용자가 채팅에 노출된 현재 봇 토큰을 위험을 감수하고 사용하라고 명시했다. 토큰은 코드, 로그, 커밋, 답변에 다시 출력하지 않는다.
+- 스카이스캐너 웹 검색은 CAPTCHA로 자동 조회가 차단되어 우회하지 않는다.
+- 사용자 승인에 따라 가격 소스를 SerpApi의 Google Flights API로 변경한다. 무료 월 250회 중 약 90회를 사용하도록 하루 3회 조회한다.
+- SerpApi 실제 검색과 Telegram 봇 인증 및 chat ID 조회에 성공했다. 2026-07-22 기준 API가 반환한 4인 왕복 최저 표시는 2,670,800원이었다.

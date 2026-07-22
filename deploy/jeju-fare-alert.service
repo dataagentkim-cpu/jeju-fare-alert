@@ -1,0 +1,14 @@
+[Unit]
+Description=Jeju Fare Alert
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/jeju-fare-alert
+EnvironmentFile=/home/ubuntu/jeju-fare-alert/.env
+ExecStart=/home/ubuntu/jeju-fare-alert/venv/bin/python -m src.main
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
