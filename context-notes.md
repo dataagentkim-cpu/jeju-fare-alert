@@ -15,3 +15,7 @@
 - 스카이스캐너 웹 검색은 CAPTCHA로 자동 조회가 차단되어 우회하지 않는다.
 - 사용자 승인에 따라 가격 소스를 SerpApi의 Google Flights API로 변경한다. 무료 월 250회 중 약 90회를 사용하도록 하루 3회 조회한다.
 - SerpApi 실제 검색과 Telegram 봇 인증 및 chat ID 조회에 성공했다. 2026-07-22 기준 API가 반환한 4인 왕복 최저 표시는 2,670,800원이었다.
+- 공개 저장소 `dataagentkim-cpu/jeju-fare-alert`를 생성하고 `main`을 push했다.
+- EC2 `/home/ubuntu/jeju-fare-alert`에 clone하고 `.env`를 권한 600으로 저장했다.
+- `jeju-fare-alert.service`를 활성화했으며 다음 실행 시각이 2026-07-22 15:00 KST로 기록된 것을 확인했다.
+- Telegram 시험 메시지 전송에 성공했고 GitHub Actions 비밀 `EC2_HOST`, `EC2_SSH_KEY`를 등록했다.
