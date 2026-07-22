@@ -20,40 +20,67 @@ class Response(io.BytesIO):
 class FareTests(unittest.TestCase):
     @patch("src.main.urlopen")
     def test_fetch_lowest_fare_selects_minimum_price(self, mocked_urlopen):
-        mocked_urlopen.return_value = Response(
-            json.dumps(
-                {
-                    "search_metadata": {"google_flights_url": "https://example.com/search"},
-                    "best_flights": [
-                        {
-                            "price": 400000,
-                            "flights": [
-                                {
-                                    "airline": "비싼항공",
-                                    "departure_airport": {"time": "2026-09-24 09:00"},
-                                }
-                            ],
-                        }
-                    ],
-                    "other_flights": [
-                        {
-                            "price": 300000,
-                            "flights": [
-                                {
-                                    "airline": "저렴항공",
-                                    "departure_airport": {"time": "2026-09-24 10:00"},
-                                }
-                            ],
-                        }
-                    ],
-                }
-            ).encode()
-        )
+        mocked_urlopen.side_effect = [
+            Response(
+                json.dumps(
+                    {
+                        "search_metadata": {"google_flights_url": "https://example.com/search"},
+                        "best_flights": [
+                            {
+                                "price": 400000,
+                                "departure_token": "expensive",
+                                "flights": [
+                                    {
+                                        "airline": "비싼항공",
+                                        "departure_airport": {"time": "2026-09-24 09:00"},
+                                        "arrival_airport": {"time": "2026-09-24 10:00"},
+                                    }
+                                ],
+                            }
+                        ],
+                        "other_flights": [
+                            {
+                                "price": 300000,
+                                "departure_token": "cheapest",
+                                "flights": [
+                                    {
+                                        "airline": "저렴항공",
+                                        "departure_airport": {"time": "2026-09-24 10:00"},
+                                        "arrival_airport": {"time": "2026-09-24 11:00"},
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ).encode()
+            ),
+            Response(
+                json.dumps(
+                    {
+                        "best_flights": [
+                            {
+                                "price": 300000,
+                                "flights": [
+                                    {
+                                        "airline": "돌아오는항공",
+                                        "departure_airport": {"time": "2026-09-27 18:00"},
+                                        "arrival_airport": {"time": "2026-09-27 19:00"},
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                ).encode()
+            ),
+        ]
 
         fare = fetch_lowest_fare("test-key")
 
         self.assertEqual(fare["price"], 300000)
-        self.assertEqual(fare["airline"], "저렴항공")
+        self.assertEqual(fare["outbound_airline"], "저렴항공")
+        self.assertEqual(fare["outbound_departure"], "2026-09-24 10:00")
+        self.assertEqual(fare["inbound_airline"], "돌아오는항공")
+        self.assertEqual(fare["inbound_departure"], "2026-09-27 18:00")
 
     def test_next_run_uses_same_day_slot(self):
         now = datetime(2026, 7, 22, 10, 30, tzinfo=SEOUL)

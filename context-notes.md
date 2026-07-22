@@ -19,3 +19,4 @@
 - EC2 `/home/ubuntu/jeju-fare-alert`에 clone하고 `.env`를 권한 600으로 저장했다.
 - `jeju-fare-alert.service`를 활성화했으며 다음 실행 시각이 2026-07-22 15:00 KST로 기록된 것을 확인했다.
 - Telegram 시험 메시지 전송에 성공했고 GitHub Actions 비밀 `EC2_HOST`, `EC2_SSH_KEY`를 등록했다.
+- 사용자 요청에 따라 최저가 가는 편의 `departure_token`으로 오는 편을 추가 조회하고 양쪽 출발 시각을 모두 알린다. 하루 API 호출은 6회, 월 약 180회가 된다.

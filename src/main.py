@@ -42,27 +42,46 @@ def fetch_lowest_fare(api_key: str) -> dict:
         "gl": "kr",
         "api_key": api_key,
     }
-    with urlopen(f"{SERPAPI_URL}?{urlencode(params)}", timeout=60) as response:
-        payload = json.load(response)
-
-    if payload.get("error"):
-        raise RuntimeError(payload["error"])
-
-    offers = payload.get("best_flights", []) + payload.get("other_flights", [])
-    priced_offers = [offer for offer in offers if isinstance(offer.get("price"), int)]
-    if not priced_offers:
+    payload = fetch_serpapi(params)
+    outbound_offers = payload.get("best_flights", []) + payload.get("other_flights", [])
+    priced_outbound = [
+        offer
+        for offer in outbound_offers
+        if isinstance(offer.get("price"), int) and offer.get("departure_token")
+    ]
+    if not priced_outbound:
         raise RuntimeError("no priced nonstop round-trip offers found")
 
-    cheapest = min(priced_offers, key=lambda offer: offer["price"])
-    first_leg = cheapest.get("flights", [{}])[0]
+    outbound = min(priced_outbound, key=lambda offer: offer["price"])
+    return_payload = fetch_serpapi({**params, "departure_token": outbound["departure_token"]})
+    return_offers = return_payload.get("best_flights", []) + return_payload.get("other_flights", [])
+    priced_returns = [offer for offer in return_offers if isinstance(offer.get("price"), int)]
+    if not priced_returns:
+        raise RuntimeError("no priced return flights found")
+
+    inbound = min(priced_returns, key=lambda offer: offer["price"])
+    outbound_leg = outbound.get("flights", [{}])[0]
+    inbound_leg = inbound.get("flights", [{}])[0]
     return {
-        "price": cheapest["price"],
-        "airline": first_leg.get("airline", "항공사 미상"),
-        "departure": first_leg.get("departure_airport", {}).get("time", "시간 미상"),
+        "price": inbound["price"],
+        "outbound_airline": outbound_leg.get("airline", "항공사 미상"),
+        "outbound_departure": outbound_leg.get("departure_airport", {}).get("time", "시간 미상"),
+        "outbound_arrival": outbound_leg.get("arrival_airport", {}).get("time", "시간 미상"),
+        "inbound_airline": inbound_leg.get("airline", "항공사 미상"),
+        "inbound_departure": inbound_leg.get("departure_airport", {}).get("time", "시간 미상"),
+        "inbound_arrival": inbound_leg.get("arrival_airport", {}).get("time", "시간 미상"),
         "search_url": payload.get("search_metadata", {}).get(
             "google_flights_url", "https://www.google.com/travel/flights"
         ),
     }
+
+
+def fetch_serpapi(params: dict) -> dict:
+    with urlopen(f"{SERPAPI_URL}?{urlencode(params)}", timeout=60) as response:
+        payload = json.load(response)
+    if payload.get("error"):
+        raise RuntimeError(payload["error"])
+    return payload
 
 
 def send_telegram(token: str, chat_id: str, text: str) -> None:
@@ -82,8 +101,10 @@ def check_and_notify() -> None:
         "일정: 2026-09-24 ~ 2026-09-27\n"
         "인원: 성인 4명\n"
         f"가격: {fare['price']:,}원\n"
-        f"항공사: {fare['airline']}\n"
-        f"출발편: {fare['departure']}\n"
+        f"가는 편: {fare['outbound_departure']} 출발 → {fare['outbound_arrival']} 도착\n"
+        f"가는 항공사: {fare['outbound_airline']}\n"
+        f"오는 편: {fare['inbound_departure']} 출발 → {fare['inbound_arrival']} 도착\n"
+        f"오는 항공사: {fare['inbound_airline']}\n"
         f"확인: {checked_at} KST\n"
         f"검색 결과: {fare['search_url']}"
     )
