@@ -6,7 +6,7 @@ import unittest
 from datetime import datetime
 from unittest.mock import patch
 
-from src.main import SEOUL, fetch_lowest_fare, next_run
+from src.main import NoFareResultsError, SEOUL, fetch_lowest_fare, next_run, run_check
 
 
 class Response(io.BytesIO):
@@ -81,6 +81,37 @@ class FareTests(unittest.TestCase):
         self.assertEqual(fare["outbound_departure"], "2026-09-24 10:00")
         self.assertEqual(fare["inbound_airline"], "돌아오는항공")
         self.assertEqual(fare["inbound_departure"], "2026-09-27 18:00")
+
+    @patch("src.main.send_status_message")
+    @patch("src.main.check_and_notify")
+    def test_run_check_notifies_when_no_results(self, mocked_check, mocked_status):
+        mocked_check.side_effect = NoFareResultsError("직항 결과 없음")
+
+        run_check()
+
+        mocked_status.assert_called_once_with(
+            "✈️ 김포–제주 왕복 직항 검색 결과 없음",
+            "직항 결과 없음",
+        )
+
+    @patch.dict(
+        "os.environ",
+        {
+            "SERPAPI_API_KEY": "secret-api-key",
+            "TELEGRAM_BOT_TOKEN": "secret-bot-token",
+        },
+    )
+    @patch("src.main.send_status_message")
+    @patch("src.main.check_and_notify")
+    def test_run_check_notifies_sanitized_failure_reason(self, mocked_check, mocked_status):
+        mocked_check.side_effect = RuntimeError("request failed with secret-api-key")
+
+        run_check()
+
+        mocked_status.assert_called_once_with(
+            "⚠️ 김포–제주 항공권 조회 실패",
+            "request failed with [비밀정보]",
+        )
 
     def test_next_run_uses_same_day_slot(self):
         now = datetime(2026, 7, 22, 10, 30, tzinfo=SEOUL)

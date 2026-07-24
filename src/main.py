@@ -18,6 +18,10 @@ SERPAPI_URL = "https://serpapi.com/search.json"
 TELEGRAM_API_URL = "https://api.telegram.org/bot{token}/sendMessage"
 
 
+class NoFareResultsError(RuntimeError):
+    """조건에 맞는 가격 조회 결과가 없음을 나타냅니다."""
+
+
 def required_env(name: str) -> str:
     value = os.getenv(name)
     if not value:
@@ -50,14 +54,14 @@ def fetch_lowest_fare(api_key: str) -> dict:
         if isinstance(offer.get("price"), int) and offer.get("departure_token")
     ]
     if not priced_outbound:
-        raise RuntimeError("no priced nonstop round-trip offers found")
+        raise NoFareResultsError("가격이 포함된 직항 왕복 항공편을 찾지 못했습니다.")
 
     outbound = min(priced_outbound, key=lambda offer: offer["price"])
     return_payload = fetch_serpapi({**params, "departure_token": outbound["departure_token"]})
     return_offers = return_payload.get("best_flights", []) + return_payload.get("other_flights", [])
     priced_returns = [offer for offer in return_offers if isinstance(offer.get("price"), int)]
     if not priced_returns:
-        raise RuntimeError("no priced return flights found")
+        raise NoFareResultsError("가격이 포함된 돌아오는 항공편을 찾지 못했습니다.")
 
     inbound = min(priced_returns, key=lambda offer: offer["price"])
     outbound_leg = outbound.get("flights", [{}])[0]
@@ -93,6 +97,30 @@ def send_telegram(token: str, chat_id: str, text: str) -> None:
         raise RuntimeError("Telegram API rejected the message")
 
 
+def safe_failure_reason(error: Exception) -> str:
+    reason = str(error).strip() or error.__class__.__name__
+    for name in ("SERPAPI_API_KEY", "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"):
+        secret = os.getenv(name)
+        if secret:
+            reason = reason.replace(secret, "[비밀정보]")
+    return reason[:500]
+
+
+def send_status_message(title: str, reason: str) -> None:
+    checked_at = datetime.now(SEOUL).strftime("%Y-%m-%d %H:%M")
+    send_telegram(
+        required_env("TELEGRAM_BOT_TOKEN"),
+        required_env("TELEGRAM_CHAT_ID"),
+        (
+            f"{title}\n"
+            "일정: 2026-09-24 ~ 2026-09-27\n"
+            "인원: 성인 4명\n"
+            f"이유: {reason}\n"
+            f"확인: {checked_at} KST"
+        ),
+    )
+
+
 def check_and_notify() -> None:
     fare = fetch_lowest_fare(required_env("SERPAPI_API_KEY"))
     checked_at = datetime.now(SEOUL).strftime("%Y-%m-%d %H:%M")
@@ -115,6 +143,17 @@ def check_and_notify() -> None:
     )
 
 
+def run_check() -> None:
+    try:
+        check_and_notify()
+    except NoFareResultsError as error:
+        logging.warning("no fare results: %s", error)
+        send_status_message("✈️ 김포–제주 왕복 직항 검색 결과 없음", str(error))
+    except Exception as error:
+        logging.exception("fare check failed")
+        send_status_message("⚠️ 김포–제주 항공권 조회 실패", safe_failure_reason(error))
+
+
 def next_run(now: datetime) -> datetime:
     for hour in RUN_HOURS:
         candidate = now.replace(hour=hour, minute=0, second=0, microsecond=0)
@@ -131,9 +170,9 @@ def run_scheduler(stop_event: threading.Event) -> None:
         if stop_event.wait(max(delay, 0)):
             break
         try:
-            check_and_notify()
+            run_check()
         except Exception:
-            logging.exception("fare check failed")
+            logging.exception("status notification failed")
 
 
 def main() -> None:
@@ -147,7 +186,7 @@ def main() -> None:
     )
 
     if args.once:
-        check_and_notify()
+        run_check()
         return
 
     stop_event = threading.Event()
